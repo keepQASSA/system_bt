@@ -278,7 +278,8 @@ BT_HDR* attp_build_opcode_cmd(uint8_t op_code) {
 BT_HDR* attp_build_value_cmd(uint16_t payload_size, uint8_t op_code,
                              uint16_t handle, uint16_t offset, uint16_t len,
                              uint8_t* p_data) {
-    size_t pair_len;
+  uint8_t *p, *pp, *p_pair_len;
+  size_t pair_len;
   size_t size_now = 1;
 #define CHECK_SIZE()                          \
   do {                                        \
@@ -288,15 +289,13 @@ BT_HDR* attp_build_value_cmd(uint16_t payload_size, uint8_t op_code,
       return nullptr;                         \
     }                                         \
   } while (false)
+  
   BT_HDR* p_buf =
       (BT_HDR*)osi_malloc(sizeof(BT_HDR) + payload_size + L2CAP_MIN_OFFSET);
-
   p = pp = (uint8_t*)(p_buf + 1) + L2CAP_MIN_OFFSET;
-  
   CHECK_SIZE();
   UINT8_TO_STREAM(p, op_code);
   p_buf->offset = L2CAP_MIN_OFFSET;
-
   if (op_code == GATT_RSP_READ_BY_TYPE) {
     p_pair_len = p++;
     pair_len = len + 2;
@@ -309,30 +308,27 @@ BT_HDR* attp_build_value_cmd(uint16_t payload_size, uint8_t op_code,
     CHECK_SIZE();
     UINT16_TO_STREAM(p, handle);
   }
-
   if (op_code == GATT_REQ_PREPARE_WRITE || op_code == GATT_RSP_PREPARE_WRITE) {
     size_now += 2;
     CHECK_SIZE();
     UINT16_TO_STREAM(p, offset);
   }
 
-  if (len > 0 && p_data != NULL) {
+    if (len > 0 && p_data != NULL) {
     /* ensure data not exceed MTU size */
-        if (payload_size - size_now < len) {
+    if (payload_size - size_now < len) {
       len = payload_size - size_now;
       /* update handle value pair length */
       if (op_code == GATT_RSP_READ_BY_TYPE) {
         pair_len = (len + 2);
       }
-
       LOG(WARNING) << StringPrintf(
           "attribute value too long, to be truncated to %d", len);
     }
-
     size_now += len;
     CHECK_SIZE();
     ARRAY_TO_STREAM(p, p_data, len);
-    }
+  }
   // backfill pair len field
   if (op_code == GATT_RSP_READ_BY_TYPE) {
     if (pair_len > UINT8_MAX) {
@@ -344,7 +340,6 @@ BT_HDR* attp_build_value_cmd(uint16_t payload_size, uint8_t op_code,
   }
 #undef CHECK_SIZE
   p_buf->len = (uint16_t)size_now;
-
   return p_buf;
 }
 
